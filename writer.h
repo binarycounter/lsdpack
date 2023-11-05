@@ -30,7 +30,7 @@ class Writer : public IWriter {
         void record_song_start(const char* out_path);
         void record_song_stop();
         void record_write(unsigned char addr, unsigned char data, unsigned long cycle);
-        void record_lcd();
+        void record_end_tick();
         void write_music_to_disk();
 
     private:

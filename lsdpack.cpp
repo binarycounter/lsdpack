@@ -19,6 +19,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 
 #include "gambatte.h"
 
@@ -128,9 +129,9 @@ void on_ff_write(char p, char data, unsigned long cycle) {
     }
 }
 
-void on_lcd_interrupt() {
+void on_tick_interrupt() {
     if (sound_enabled) {
-        writer->record_lcd();
+        writer->record_end_tick();
     }
 }
 
@@ -147,12 +148,43 @@ void make_out_path(const char* in_path, std::string suffix) {
     printf("Recording to '%s'\n", out_path.c_str());
 }
 
-void load_gb(const char* path, bool dmg_mode) {
+enum LSDJCompatibility { v9_2_0, v9_1_0, auto_detect };
+void load_gb(const char* path, bool dmg_mode, LSDJCompatibility compatibility) {
     unsigned flags = dmg_mode ? gameboy.FORCE_DMG : 0;
     if (gameboy.load(path, flags)) {
         fprintf(stderr, "Loading %s failed\n", path);
         exit(1);
     }
+
+    if (compatibility == auto_detect)
+    {
+        puts("Auto-detecting LSDj version");
+        std::ifstream rom_file(path);
+        char header_string[0xF];
+        rom_file.seekg(0x134);
+        rom_file.read(header_string, 0xf);
+        const char* start = strstr(header_string, "v");
+        if (start == nullptr) {
+            fprintf(stderr, "Could not detect LSDj version for %s \n Please specify version using command-line options\n", path);
+            exit(1);
+        }
+        if (start[1] >= '9' && start[3] >= '2')
+            compatibility = v9_2_0;
+        else
+            compatibility = v9_1_0;
+    }
+
+    if (compatibility == v9_2_0)
+    {
+        puts("9.2.0+ mode, recording timer interrupts");
+        gameboy.setTimerHandler(on_tick_interrupt);
+    }
+    else
+    {
+        puts("<9.1.C mode, recording LCD interrupts");
+        gameboy.setLcdHandler(on_tick_interrupt);
+    }
+
     printf("Loaded %s\n", path);
     press(0, 3);
 
@@ -161,13 +193,13 @@ void load_gb(const char* path, bool dmg_mode) {
     press(0);
 }
 
-void record_gb(int argc, char* argv[], bool dmg_mode) {
+void record_gb(int argc, char* argv[], bool dmg_mode, LSDJCompatibility compatibility) {
     make_out_path(argv[optind], ".s");
     writer = new Writer(false);
     unsigned flags = dmg_mode ? gameboy.FORCE_DMG : 0;
 
     for (; optind < argc; ++optind) {
-        load_gb(argv[optind], flags);
+        load_gb(argv[optind], flags, compatibility);
 
         for (int song_index = 0; song_index < 32; ++song_index) {
             if (load_song(song_index)) {
@@ -181,10 +213,10 @@ void record_gb(int argc, char* argv[], bool dmg_mode) {
     delete writer;
 }
 
-void record_gbs(int argc, char* argv[], bool dmg_mode) {
+void record_gbs(int argc, char* argv[], bool dmg_mode, LSDJCompatibility compatibility) {
     unsigned flags = dmg_mode ? gameboy.FORCE_DMG : 0;
     for (; optind < argc; ++optind) {
-        load_gb(argv[optind], flags);
+        load_gb(argv[optind], flags, compatibility);
 
         for (int song_index = 0; song_index < 32; ++song_index) {
             writer = new Writer(true);
@@ -205,12 +237,12 @@ void record_gbs(int argc, char* argv[], bool dmg_mode) {
     }
 }
 
-void record_dump(int argc, char* argv[], bool dmg_mode) {
+void record_dump(int argc, char* argv[], bool dmg_mode, LSDJCompatibility compatibility) {
     writer = new DumpWriter();
     unsigned flags = dmg_mode ? gameboy.FORCE_DMG : 0;
 
     for (; optind < argc; ++optind) {
-        load_gb(argv[optind], flags);
+        load_gb(argv[optind], flags, compatibility);
 
         for (int song_index = 0; song_index < 32; ++song_index) {
             if (load_song(song_index)) {
@@ -228,11 +260,13 @@ void record_dump(int argc, char* argv[], bool dmg_mode) {
 }
 
 void print_help_and_exit() {
-    puts("usage: lsdpack [-g] [-r] [-d] [lsdj.gb lsdj2.gb ...]");
+    puts("usage: lsdpack [-g] [-r] [-d] [-t/l] [lsdj.gb lsdj2.gb ...]");
     puts("");
     puts("-g: .gbs conversion");
     puts("-r: raw register dump; optimizations disabled");
     puts("-d: record using emulated DMG (default: CGB)");
+    puts("-t: force 9.2.0+ compatibility mode (default: auto-detect)");
+    puts("-l: force <9.1.0 compatibility mode (default: auto-detect)");
     exit(1);
 }
 
@@ -240,10 +274,11 @@ int main(int argc, char* argv[]) {
     bool gbs_mode = false;
     bool dump_mode = false;
     bool dmg_mode = false;
+    LSDJCompatibility compatibility=auto_detect;
     unsigned flags = 0;
 
     int c;
-    while ((c = getopt(argc, argv, "grd")) != -1) {
+    while ((c = getopt(argc, argv, "grdtl")) != -1) {
         switch (c) {
             case 'g':
                 puts(".gbs mode enabled");
@@ -257,6 +292,12 @@ int main(int argc, char* argv[]) {
                 puts("recording using emulated DMG");
                 dmg_mode = true;
                 break;
+            case 't':
+                 compatibility=v9_2_0;
+                break;
+            case 'l':
+                compatibility = v9_1_0;
+                break;
             default:
                 print_help_and_exit();
         }
@@ -268,17 +309,18 @@ int main(int argc, char* argv[]) {
 
     gameboy.setInputGetter(&input);
     gameboy.setWriteHandler(on_ff_write);
-    gameboy.setLcdHandler(on_lcd_interrupt);
 
+
+    
     if (dmg_mode) {
         flags |= gameboy.FORCE_DMG;
     }
     if (gbs_mode) {
-        record_gbs(argc, argv, flags);
+        record_gbs(argc, argv, flags, compatibility);
     } else if (dump_mode) {
-        record_dump(argc, argv, flags);
+        record_dump(argc, argv, flags, compatibility);
     } else {
-        record_gb(argc, argv, flags);
+        record_gb(argc, argv, flags, compatibility);
     }
 
     puts("OK");

@@ -49,7 +49,7 @@ class DumpWriter : public IWriter {
             f = nullptr;
         }
 
-        void record_lcd() override {}
+        void record_end_tick() override {}
         void write_music_to_disk() override {}
 
     private:

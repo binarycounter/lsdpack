@@ -298,6 +298,9 @@ unsigned long Memory::event(unsigned long cc) {
             if (address == 0x48) {
                 lcdHandler_();
             }
+            if (address == 0x50) {
+                timerHandler_();
+            }
 			cc = interrupter_.interrupt(address, cc, *this);
 		}
 

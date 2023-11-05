@@ -25,6 +25,6 @@ class IWriter {
         virtual void record_song_start(const char* out_path) = 0;
         virtual void record_song_stop() = 0;
         virtual void record_write(unsigned char addr, unsigned char data, unsigned long cycle) = 0;
-        virtual void record_lcd() = 0;
+        virtual void record_end_tick() = 0;
         virtual void write_music_to_disk() = 0;
 };

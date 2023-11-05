@@ -67,7 +67,7 @@ void Writer::record_write(unsigned char addr, unsigned char data, unsigned long 
     record_byte(data);
 }
 
-void Writer::record_lcd() {
+void Writer::record_end_tick() {
     record_byte(FLAG_CMD | CMD_END_TICK);
 }
 

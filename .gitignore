@@ -10,3 +10,7 @@ lsdpack.exe
 *.o
 music.s
 tags
+
+# Visual Studio 
+/.vs
+/out/build
