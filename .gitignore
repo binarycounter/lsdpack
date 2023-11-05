@@ -1,6 +1,7 @@
 CMakeCache.txt
 CMakeFiles
 CPackConfig.cmake
+/CMakeSettings.json
 CPackSourceConfig.cmake
 Makefile
 cmake_install.cmake

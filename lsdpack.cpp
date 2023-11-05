@@ -163,6 +163,7 @@ void load_gb(const char* path, bool dmg_mode, LSDJCompatibility compatibility) {
         char header_string[0xF];
         rom_file.seekg(0x134);
         rom_file.read(header_string, 0xf);
+        rom_file.close();
         const char* start = strstr(header_string, "v");
         if (start == nullptr) {
             fprintf(stderr, "Could not detect LSDj version for %s \n Please specify version using command-line options\n", path);
